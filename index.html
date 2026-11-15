@@ -83,7 +83,6 @@ small{color:#94a3b8}
   const gbox = document.getElementById("gsi-box");
   const sbox = document.getElementById("sync-status");
   let idToken = localStorage.getItem(TOKEN_KEY);
-  let pushTimer = null;
   let gTries = 0;
 
   if (idToken) {
@@ -100,33 +99,31 @@ small{color:#94a3b8}
   function authHeaders() { return { "Authorization": "Bearer " + idToken }; }
 
   async function sendData(body) {
+    if (!idToken) return;
     try {
-      const r = await fetch(API, { method: "PUT", headers: { ...authHeaders(), "Content-Type": "text/plain" }, body: body });
+      const r = await fetch(API, {
+        method: "PUT",
+        headers: { ...authHeaders(), "Content-Type": "text/plain" },
+        body: body,
+        keepalive: true
+      });
       showStatus(r.ok ? "Tersinkron " + new Date().toLocaleTimeString() : "Gagal sync (" + r.status + ")");
     } catch (e) { showStatus("Gagal sync: jaringan"); }
   }
 
-  function pushToServer() {
-    if (!idToken) return;
-    clearTimeout(pushTimer);
-    pushTimer = setTimeout(() => {
-      const data = localStorage.getItem(DATA_KEY);
-      if (data) sendData(data);
-    }, 1500);
-  }
-
   Storage.prototype.setItem = function (k, v) {
     origSet.call(this, k, v);
-    if (this === localStorage && k === DATA_KEY) pushToServer();
+    if (this === localStorage && k === DATA_KEY) sendData(v);
   };
 
   Storage.prototype.removeItem = function (k) {
     origRemove.call(this, k);
-    if (this === localStorage && k === DATA_KEY && idToken) {
-      clearTimeout(pushTimer);
-      sendData("null");
-    }
+    if (this === localStorage && k === DATA_KEY) sendData("null");
   };
+
+  function tsOf(txt) {
+    try { const o = JSON.parse(txt); return (o && o.ts) || 0; } catch (e) { return 0; }
+  }
 
   async function pullFromServer() {
     showStatus("Menyinkronkan...");
@@ -142,11 +139,14 @@ small{color:#94a3b8}
         else showStatus("Login OK, belum ada data");
         return;
       }
-      if (txt !== local) {
+      const rts = tsOf(txt);
+      const lts = local ? tsOf(local) : 0;
+      if (rts > lts) {
         origSet.call(localStorage, DATA_KEY, txt);
         location.reload();
         return;
       }
+      if (lts > rts) { sendData(local); return; }
       showStatus("Tersinkron " + new Date().toLocaleTimeString());
     } catch (e) { showStatus("Gagal ambil data: jaringan"); }
   }
@@ -186,7 +186,7 @@ const COOLDOWN = 60 * 60 * 1000;
 const $ = id => document.getElementById(id);
 let d = JSON.parse(localStorage.getItem(KEY) || 'null');
 
-function simpan() { localStorage.setItem(KEY, JSON.stringify(d)); }
+function simpan() { d.ts = Date.now(); localStorage.setItem(KEY, JSON.stringify(d)); }
 function buatKode() { return Math.random().toString(36).slice(2, 8).toUpperCase(); }
 function formatWaktu(ms) {
   const t = Math.max(0, Math.floor(ms / 1000));
@@ -282,9 +282,5 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 </body>
-</html>
-.serviceWorker.register('sw.js');
-}
-</script>
-</body>
-</html>
+  </html>
+  
