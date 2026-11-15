@@ -26,6 +26,63 @@ input{width:100%;padding:12px;margin:8px 0;border-radius:10px;border:1px solid #
 small{color:#94a3b8}
 </style>
 </head>
+<div id="gsi-box" style="text-align:center;margin:12px"></div>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+const API = "https://velomining-api.projekpod.workers.dev/api/data";
+const CID = "723431285469-5k14ahtk8irpk9oko4c78qn1ifvjabh9.apps.googleusercontent.com";
+const KEY = "velomining_v1";
+const rawSet = Storage.prototype.setItem.bind(localStorage);
+let idToken = localStorage.getItem("vm_token");
+let pushTimer = null;
+
+// Cek masa berlaku token (sekitar 1 jam)
+if (idToken) {
+  const exp = JSON.parse(atob(idToken.split(".")[1].replace(/-/g,"+").replace(/_/g,"/"))).exp;
+  if (exp * 1000 < Date.now()) { idToken = null; localStorage.removeItem("vm_token"); }
+}
+
+function authHeaders() { return { "Authorization": "Bearer " + idToken }; }
+
+function pushToServer() {
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => {
+    const data = localStorage.getItem(KEY);
+    if (!data || !idToken) return;
+    fetch(API, { method: "PUT", headers: { ...authHeaders(), "Content-Type": "text/plain" }, body: data }).catch(() => {});
+  }, 1500);
+}
+
+// Setiap simpan data, kirim juga ke server
+const origSet = Storage.prototype.setItem;
+Storage.prototype.setItem = function (k, v) {
+  origSet.call(this, k, v);
+  if (this === localStorage && k === KEY && idToken) pushToServer();
+};
+
+async function pullFromServer() {
+  const r = await fetch(API, { headers: authHeaders() });
+  if (!r.ok) return;
+  const txt = await r.text();
+  const local = localStorage.getItem(KEY);
+  if (txt === "null") { if (local) pushToServer(); return; }
+  if (txt !== local) { rawSet(KEY, txt); location.reload(); }
+}
+
+function handleCredential(resp) {
+  idToken = resp.credential;
+  localStorage.setItem("vm_token", idToken);
+  pullFromServer();
+}
+
+window.addEventListener("load", () => {
+  if (idToken) pullFromServer();
+  if (window.google) {
+    google.accounts.id.initialize({ client_id: CID, callback: handleCredential });
+    google.accounts.id.renderButton(document.getElementById("gsi-box"), { theme: "outline", size: "large", text: "signin_with" });
+  }
+});
+</script>
 <body>
 <div class="card">
   <h1>VeloMining</h1>
