@@ -26,34 +26,41 @@ input{width:100%;padding:12px;margin:8px 0;border-radius:10px;border:1px solid #
 small{color:#94a3b8}
 </style>
 </head>
-<div id="gsi-box" style="text-align:center;margin:12px"></div>
+<div id="gsi-box" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;text-align:center;background:#fff;padding:16px;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.3)"></div>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 const API = "https://velomining-api.projekpod.workers.dev/api/data";
 const CID = "723431285469-5k14ahtk8irpk9oko4c78qn1ifvjabh9.apps.googleusercontent.com";
 const KEY = "velomining_v1";
 const rawSet = Storage.prototype.setItem.bind(localStorage);
+const box = document.getElementById("gsi-box");
 let idToken = localStorage.getItem("vm_token");
 let pushTimer = null;
 
-// Cek masa berlaku token (sekitar 1 jam)
 if (idToken) {
   const exp = JSON.parse(atob(idToken.split(".")[1].replace(/-/g,"+").replace(/_/g,"/"))).exp;
   if (exp * 1000 < Date.now()) { idToken = null; localStorage.removeItem("vm_token"); }
+}
+
+function showStatus(msg) {
+  box.style.cssText = "position:fixed;bottom:8px;left:8px;z-index:9999;font-size:12px;background:#fff;padding:4px 8px;border-radius:8px;box-shadow:0 1px 6px rgba(0,0,0,.2)";
+  box.innerHTML = msg;
 }
 
 function authHeaders() { return { "Authorization": "Bearer " + idToken }; }
 
 function pushToServer() {
   clearTimeout(pushTimer);
-  pushTimer = setTimeout(() => {
+  pushTimer = setTimeout(async () => {
     const data = localStorage.getItem(KEY);
     if (!data || !idToken) return;
-    fetch(API, { method: "PUT", headers: { ...authHeaders(), "Content-Type": "text/plain" }, body: data }).catch(() => {});
+    try {
+      const r = await fetch(API, { method: "PUT", headers: { ...authHeaders(), "Content-Type": "text/plain" }, body: data });
+      showStatus(r.ok ? "Tersinkron " + new Date().toLocaleTimeString() : "Gagal sync (" + r.status + ")");
+    } catch (e) { showStatus("Gagal sync: jaringan"); }
   }, 1500);
 }
 
-// Setiap simpan data, kirim juga ke server
 const origSet = Storage.prototype.setItem;
 Storage.prototype.setItem = function (k, v) {
   origSet.call(this, k, v);
@@ -61,28 +68,34 @@ Storage.prototype.setItem = function (k, v) {
 };
 
 async function pullFromServer() {
-  const r = await fetch(API, { headers: authHeaders() });
-  if (!r.ok) return;
-  const txt = await r.text();
-  const local = localStorage.getItem(KEY);
-  if (txt === "null") { if (local) pushToServer(); return; }
-  if (txt !== local) { rawSet(KEY, txt); location.reload(); }
+  showStatus("Menyinkronkan...");
+  try {
+    const r = await fetch(API, { headers: authHeaders() });
+    if (r.status === 401) { localStorage.removeItem("vm_token"); location.reload(); return; }
+    if (!r.ok) { showStatus("Gagal ambil data (" + r.status + ")"); return; }
+    const txt = await r.text();
+    const local = localStorage.getItem(KEY);
+    if (txt === "null") { if (local) pushToServer(); else showStatus("Login OK, belum ada data"); return; }
+    if (txt !== local) { rawSet(KEY, txt); location.reload(); return; }
+    showStatus("Tersinkron " + new Date().toLocaleTimeString());
+  } catch (e) { showStatus("Gagal ambil data: jaringan"); }
 }
 
 function handleCredential(resp) {
   idToken = resp.credential;
   localStorage.setItem("vm_token", idToken);
+  box.innerHTML = "";
   pullFromServer();
 }
 
 window.addEventListener("load", () => {
-  if (idToken) pullFromServer();
-  if (window.google) {
-    google.accounts.id.initialize({ client_id: CID, callback: handleCredential });
-    google.accounts.id.renderButton(document.getElementById("gsi-box"), { theme: "outline", size: "large", text: "signin_with" });
-  }
+  if (idToken) { pullFromServer(); return; }
+  if (!window.google) { box.innerHTML = "Gagal memuat Google Login"; return; }
+  google.accounts.id.initialize({ client_id: CID, callback: handleCredential });
+  google.accounts.id.renderButton(box, { theme: "outline", size: "large", text: "signin_with" });
 });
 </script>
+
 <body>
 <div class="card">
   <h1>VeloMining</h1>
