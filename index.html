@@ -8,14 +8,21 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <meta name="theme-color" content="#0b1020">
 <style>
-body{margin:0;font-family:system-ui,sans-serif;background:#0b1020;color:#e8ecf7;display:flex;justify-content:center;min-height:100vh}
+body{margin:0;font-family:system-ui,sans-serif;background:radial-gradient(circle at top,#1e1b4b,#0b1020 60%);color:#e8ecf7;display:flex;justify-content:center;min-height:100vh}
 .card{width:100%;max-width:420px;padding:20px;box-sizing:border-box;text-align:center}
-h1{color:#4fd1c5;margin:8px 0}
-.poin{font-size:42px;font-weight:700;margin:16px 0 4px}
-button{width:100%;padding:14px;margin:6px 0;border:0;border-radius:12px;font-size:16px;font-weight:600;background:#4fd1c5;color:#0b1020}
-button:disabled{background:#334155;color:#94a3b8}
+h1{background:linear-gradient(90deg,#22d3ee,#a78bfa);-webkit-background-clip:text;background-clip:text;color:transparent;margin:8px 0;font-size:32px}
+.poin{font-size:48px;font-weight:800;margin:14px 0 2px;font-variant-numeric:tabular-nums}
+.timer{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;color:#22d3ee;margin:10px 0;letter-spacing:1px}
+button{width:100%;padding:14px;margin:6px 0;border:0;border-radius:14px;font-size:16px;font-weight:700;background:linear-gradient(90deg,#22d3ee,#7c3aed);color:#fff;box-shadow:0 6px 20px rgba(124,58,237,.35)}
+button:disabled{background:#1f2937;color:#64748b;box-shadow:none}
+button.sekunder{background:#1f2937;color:#e8ecf7;box-shadow:none;font-weight:600}
+button.bahaya{background:#7f1d1d;color:#fff;box-shadow:none}
 input{width:100%;padding:12px;margin:8px 0;border-radius:10px;border:1px solid #334155;background:#111827;color:#e8ecf7;box-sizing:border-box;font-size:16px}
-.box{background:#111827;border-radius:14px;padding:14px;margin:12px 0;font-size:14px;text-align:left}
+.box{background:rgba(17,24,39,.85);border:1px solid #1f2937;border-radius:16px;padding:14px;margin:12px 0;font-size:14px;text-align:left}
+.kode{font-size:20px;font-weight:800;letter-spacing:3px;color:#a78bfa;text-align:center;margin:6px 0}
+.link{font-size:12px;color:#94a3b8;word-break:break-all;text-align:center}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid button{margin:0}
 small{color:#94a3b8}
 </style>
 </head>
@@ -33,17 +40,29 @@ small{color:#94a3b8}
   </div>
 
   <div id="main" style="display:none">
-    <div class="box"><small>Nama</small><div id="namaTampil"></div></div>
+    <div class="box" style="text-align:center"><small>Halo,</small> <b id="namaTampil"></b></div>
     <div class="poin" id="poin">0</div>
     <small>VeloPoint</small>
-    <button id="btnMining" onclick="mining()">Mining</button>
-    <button id="btnCheckin" onclick="checkin()">Check-in harian</button>
+
+    <div class="timer" id="timer">--:--:--</div>
+    <button id="btnMining" onclick="mining()">Mining (+10 poin)</button>
+    <button id="btnCheckin" onclick="checkin()">Check-in harian (+50 poin)</button>
+
     <div class="box">
-      <b>Kode referral kamu:</b>
-      <div id="kodeRef"></div>
-      <small>Bonus referral akan aktif setelah versi server siap.</small>
+      <div style="text-align:center"><small>Kode referral kamu</small></div>
+      <div class="kode" id="kodeRef"></div>
+      <div class="link" id="linkRef"></div>
+      <div class="grid" style="margin-top:10px">
+        <button class="sekunder" onclick="salin()">Salin link</button>
+        <button class="sekunder" onclick="bagikan()">Bagikan</button>
+        <button class="sekunder" onclick="bagikanWA()">WhatsApp</button>
+        <button class="sekunder" onclick="bagikanTG()">Telegram</button>
+        <button class="sekunder" onclick="bagikanX()">X / Twitter</button>
+      </div>
+      <small>Bonus referral aktif setelah server siap.</small>
     </div>
-    <button onclick="reset()" style="background:#7f1d1d;color:#fff">Reset data</button>
+
+    <button class="bahaya" onclick="reset()">Reset data (uji coba)</button>
   </div>
 </div>
 
@@ -55,6 +74,16 @@ let d = JSON.parse(localStorage.getItem(KEY) || 'null');
 
 function simpan() { localStorage.setItem(KEY, JSON.stringify(d)); }
 function buatKode() { return Math.random().toString(36).slice(2, 8).toUpperCase(); }
+function formatWaktu(ms) {
+  const t = Math.max(0, Math.floor(ms / 1000));
+  const h = String(Math.floor(t / 3600)).padStart(2, '0');
+  const m = String(Math.floor((t % 3600) / 60)).padStart(2, '0');
+  const s = String(t % 60).padStart(2, '0');
+  return h + ':' + m + ':' + s;
+}
+function linkRef() { return location.origin + location.pathname + '?ref=' + d.kode; }
+const TEKS = 'Ayo mining VeloPoint bareng aku! Pakai kode ' ;
+function teksLengkap() { return TEKS + d.kode + ' ' + linkRef(); }
 
 function daftar() {
   const nama = $('nama').value.trim();
@@ -81,6 +110,25 @@ function checkin() {
   tampil();
 }
 
+function salin() {
+  navigator.clipboard.writeText(linkRef())
+    .then(() => alert('Link referral sudah disalin'))
+    .catch(() => prompt('Salin link ini:', linkRef()));
+}
+
+function bagikan() {
+  if (navigator.share) {
+    navigator.share({ title: 'VeloMining', text: TEKS + d.kode, url: linkRef() }).catch(() => {});
+  } else {
+    salin();
+  }
+}
+
+function bukaShare(url) { window.open(url, '_blank'); }
+function bagikanWA() { bukaShare('https://wa.me/?text=' + encodeURIComponent(teksLengkap())); }
+function bagikanTG() { bukaShare('https://t.me/share/url?url=' + encodeURIComponent(linkRef()) + '&text=' + encodeURIComponent(TEKS + d.kode)); }
+function bagikanX() { bukaShare('https://twitter.com/intent/tweet?text=' + encodeURIComponent(TEKS + d.kode) + '&url=' + encodeURIComponent(linkRef())); }
+
 function reset() {
   if (!confirm('Hapus semua data di HP ini?')) return;
   localStorage.removeItem(KEY);
@@ -99,12 +147,11 @@ function tampil() {
   $('namaTampil').textContent = d.nama;
   $('poin').textContent = d.poin;
   $('kodeRef').textContent = d.kode;
+  $('linkRef').textContent = linkRef();
 
   const sisa = COOLDOWN - (Date.now() - d.lastMining);
   $('btnMining').disabled = sisa > 0;
-  $('btnMining').textContent = sisa > 0
-    ? 'Mining (' + Math.ceil(sisa / 60000) + ' menit lagi)'
-    : 'Mining (+10 poin)';
+  $('timer').textContent = sisa > 0 ? formatWaktu(sisa) : 'Siap diklaim';
 
   const sudah = d.lastCheckin === new Date().toDateString();
   $('btnCheckin').disabled = sudah;
@@ -114,7 +161,7 @@ function tampil() {
 }
 
 tampil();
-setInterval(tampil, 30000);
+setInterval(tampil, 1000);
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js');
