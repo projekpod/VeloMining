@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VeloMining</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0b1020">
+<style>
+body{margin:0;font-family:system-ui,sans-serif;background:#0b1020;color:#e8ecf7;display:flex;justify-content:center;min-height:100vh}
+.card{width:100%;max-width:420px;padding:20px;box-sizing:border-box;text-align:center}
+h1{color:#4fd1c5;margin:8px 0}
+.poin{font-size:42px;font-weight:700;margin:16px 0 4px}
+button{width:100%;padding:14px;margin:6px 0;border:0;border-radius:12px;font-size:16px;font-weight:600;background:#4fd1c5;color:#0b1020}
+button:disabled{background:#334155;color:#94a3b8}
+input{width:100%;padding:12px;margin:8px 0;border-radius:10px;border:1px solid #334155;background:#111827;color:#e8ecf7;box-sizing:border-box;font-size:16px}
+.box{background:#111827;border-radius:14px;padding:14px;margin:12px 0;font-size:14px;text-align:left}
+small{color:#94a3b8}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>VeloMining</h1>
+  <small>Kumpulkan VeloPoint lewat misi harian</small>
+
+  <div id="login" style="display:none">
+    <div class="box">
+      <p>Masukkan nama panggilan kamu:</p>
+      <input id="nama" maxlength="20" placeholder="Contoh: Oz">
+      <button onclick="daftar()">Mulai</button>
+    </div>
+  </div>
+
+  <div id="main" style="display:none">
+    <div class="box"><small>Nama</small><div id="namaTampil"></div></div>
+    <div class="poin" id="poin">0</div>
+    <small>VeloPoint</small>
+    <button id="btnMining" onclick="mining()">Mining</button>
+    <button id="btnCheckin" onclick="checkin()">Check-in harian</button>
+    <div class="box">
+      <b>Kode referral kamu:</b>
+      <div id="kodeRef"></div>
+      <small>Bonus referral akan aktif setelah versi server siap.</small>
+    </div>
+    <button onclick="reset()" style="background:#7f1d1d;color:#fff">Reset data</button>
+  </div>
+</div>
+
+<script>
+const KEY = 'velomining_v1';
+const COOLDOWN = 60 * 60 * 1000;
+const $ = id => document.getElementById(id);
+let d = JSON.parse(localStorage.getItem(KEY) || 'null');
+
+function simpan() { localStorage.setItem(KEY, JSON.stringify(d)); }
+function buatKode() { return Math.random().toString(36).slice(2, 8).toUpperCase(); }
+
+function daftar() {
+  const nama = $('nama').value.trim();
+  if (nama.length < 2) { alert('Nama minimal 2 karakter'); return; }
+  d = { nama: nama, poin: 0, lastMining: 0, lastCheckin: '', kode: buatKode() };
+  simpan();
+  tampil();
+}
+
+function mining() {
+  if (Date.now() - d.lastMining < COOLDOWN) return;
+  d.poin += 10;
+  d.lastMining = Date.now();
+  simpan();
+  tampil();
+}
+
+function checkin() {
+  const hari = new Date().toDateString();
+  if (d.lastCheckin === hari) return;
+  d.poin += 50;
+  d.lastCheckin = hari;
+  simpan();
+  tampil();
+}
+
+function reset() {
+  if (!confirm('Hapus semua data di HP ini?')) return;
+  localStorage.removeItem(KEY);
+  d = null;
+  tampil();
+}
+
+function tampil() {
+  if (!d) {
+    $('login').style.display = 'block';
+    $('main').style.display = 'none';
+    return;
+  }
+  $('login').style.display = 'none';
+  $('main').style.display = 'block';
+  $('namaTampil').textContent = d.nama;
+  $('poin').textContent = d.poin;
+  $('kodeRef').textContent = d.kode;
+
+  const sisa = COOLDOWN - (Date.now() - d.lastMining);
+  $('btnMining').disabled = sisa > 0;
+  $('btnMining').textContent = sisa > 0
+    ? 'Mining (' + Math.ceil(sisa / 60000) + ' menit lagi)'
+    : 'Mining (+10 poin)';
+
+  const sudah = d.lastCheckin === new Date().toDateString();
+  $('btnCheckin').disabled = sudah;
+  $('btnCheckin').textContent = sudah
+    ? 'Check-in hari ini sudah diklaim'
+    : 'Check-in harian (+50 poin)';
+}
+
+tampil();
+setInterval(tampil, 30000);
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
+</script>
+</body>
+</html>
